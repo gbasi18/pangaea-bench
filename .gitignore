@@ -22,3 +22,5 @@ data/mados/splits/*
 
 .vscode
 .idea
+2026*
+run_logs/

@@ -1,0 +1,43 @@
+trainer:
+  _target_: pangaea.engine.trainer_stream_decode.StreamDecodeSegTrainer
+  # params overwritten in run
+  model: null
+  train_loader: null
+  optimizer: null
+  lr_scheduler: null
+  evaluator: null
+  exp_dir: null
+  device: null
+  criterion: null
+
+  # params to adapt
+  n_epochs: 80
+  precision: fp32
+  ckpt_interval: 20
+  eval_interval: 5
+  log_interval: 5
+  best_metric_key: mIoU
+  use_wandb: ${use_wandb}
+
+  # Per-frame-LABEL streaming segmentation (DynamicEarthNetStream): the
+  # target is (B, T, H, W) and frame t's loss compares against MONTH t's
+  # label map (see StreamDecodeSegTrainer._frame_target). Every month is
+  # labelled, so supervision starts at frame 0 (unlike the PASTIS stream
+  # tasks, where min_horizon=1 skips the seed frame).
+  # Works with BOTH the recursive stream encoders and
+  # encoder=vanilla_jepa_stream (per-frame, no memory): identical trainer,
+  # decoder and evaluator across arms -- only the encoder differs.
+  min_horizon: 0
+  log_horizon_losses: true
+
+evaluator:
+  _target_: pangaea.engine.stream_evaluator.StreamSegEvaluator
+  # params overwritten in run
+  val_loader: null
+  exp_dir: null
+  device: null
+  use_wandb: ${use_wandb}
+  # accepted for compatibility; StreamSegEvaluator always evaluates on a
+  # non-overlapping grid of encoder-sized tiles (exact for confusion counts)
+  inference_mode: whole
+  sliding_inference_batch: 8

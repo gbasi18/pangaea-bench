@@ -1,0 +1,67 @@
+_target_: pangaea.encoders.recursive_jepa_feedback_decfb_encoder.RecursiveJEPAFeedbackDecFbEncoder
+
+# Same backbone/checkpoint as recursive_jepa_feedback_stream; adds the
+# pending_feedback injection point for decoder->encoder feedback (pair with
+# decoder=seg_upernet_mt_none_decfb and task=segmentation_stream_decode_fb).
+
+# >>> EDIT: path to your pretrained EMA checkpoint (weight_ema-*.pth) <<<
+encoder_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/weight_ema-400.pth
+download_url: null
+
+buffer_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/checkpoint-400.pth
+
+repo_path: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN
+
+input_size: 128
+
+# --- backbone: MUST match your pretrained checkpoint ---
+model_name: recursive_jepa_vo_small   # tiny=192 / small=384 / base=768
+arch: gated_normed                    # gated | standard | gated_normed
+embed_dim: 384
+output_dim: 384
+patch_size: 16
+in_chans: 10
+
+# recurrence loop counts (NOT in the checkpoint; set to your pretraining values)
+n_inner_steps: 3
+n_outer_steps: 1
+
+# --- t-1 -> t feedback behaviour ---
+inner_inject: belief
+alpha: null
+propagate_outer_steps: 1
+
+# forward_stream() only supports tap_source=outer (see
+# recursive_jepa_feedback_stream_encoder.py).
+tap_source: outer
+output_layers: [0]
+
+# --- stem band adaptation: BEN 12-band -> PASTIS 10-band ---
+pretrain_in_chans: 12
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+# feedback credit-assignment window, in frames: state detaches every
+# bptt_frames frames, so the adapter can learn feedback whose payoff arrives
+# up to bptt_frames-1 frames later (1 = per-frame truncation). Requires
+# StreamDecodeFbSegTrainer (it retains the graph inside the window).
+bptt_frames: 1
+
+# truncated BPTT through time: irrelevant to forward_stream (which always
+# runs frozen/no_grad), still used by the inherited forward() for
+# eval/BeliefEvolutionTracker.
+temporal_bp_frames: 20
+num_frames: ${dataset.multi_temporal}
+
+# bands fed to the encoder (must match the dataset's optical band order)
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12

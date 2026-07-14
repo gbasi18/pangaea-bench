@@ -1,0 +1,40 @@
+trainer:
+  _target_: pangaea.engine.trainer_stream_decode_fb.StreamDecodeFbSegTrainer
+  # params overwritten in run
+  model: null
+  train_loader: null
+  optimizer: null
+  lr_scheduler: null
+  evaluator: null
+  exp_dir: null
+  device: null
+  criterion: null
+
+  # params to adapt
+  n_epochs: 80
+  precision: fp32
+  ckpt_interval: 20
+  eval_interval: 5
+  log_interval: 5
+  best_metric_key: mIoU
+  use_wandb: ${use_wandb}
+
+  # segmentation_stream_labels + decoder->encoder feedback: pair with
+  # encoder=recursive_jepa_feedback_decfb and a SegMTUPerNetDecFb decoder
+  # config. The feedback loop closes over MONTHS here (frame t's prediction
+  # informs the fold of month t+1), and the per-frame labels give the
+  # adapter same-task credit at every month. The evaluator runs the
+  # identical closed loop (StreamSegEvaluator injects make_feedback taps).
+  min_horizon: 0
+  log_horizon_losses: true
+  loss_horizons: all
+
+evaluator:
+  _target_: pangaea.engine.stream_evaluator.StreamSegEvaluator
+  # params overwritten in run
+  val_loader: null
+  exp_dir: null
+  device: null
+  use_wandb: ${use_wandb}
+  inference_mode: whole
+  sliding_inference_batch: 8

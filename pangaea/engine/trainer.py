@@ -96,15 +96,40 @@ class Trainer:
 
             self.wandb = wandb
 
+    def _maybe_build_belief_tracker(self):
+        """Build the belief-evolution tracker iff the encoder exposes
+        `belief_cosines` (RecursiveJEPAFeedback). Rank-0 only; no-op otherwise."""
+        if self.rank != 0:
+            return None
+        dec = getattr(self.model, "module", self.model)
+        enc = getattr(dec, "encoder", None)
+        if enc is None or not hasattr(enc, "belief_cosines"):
+            return None
+        try:
+            from pangaea.utils.belief_evolution import BeliefEvolutionTracker
+
+            return BeliefEvolutionTracker(
+                self.model, self.evaluator.val_loader, self.device, self.exp_dir
+            )
+        except Exception as e:  # never let a diagnostic kill training
+            self.logger.warning("Belief-evolution tracker disabled: %s", e)
+            return None
+
     def train(self) -> None:
         """Train the model for n_epochs then evaluate the model and save the best model."""
-        # end_time = time.time()
+        # Optional diagnostic: every eval interval, record cos(z_H_{t-1}, z_H_t)
+        # on a fixed set of val samples; one summary figure is saved at the end.
+        belief_tracker = self._maybe_build_belief_tracker()
+
         for epoch in range(self.start_epoch, self.n_epochs):
             # train the network for one epoch
             if epoch % self.eval_interval == 0:
                 metrics, used_time = self.evaluator(self.model, f"epoch {epoch}")
                 self.training_stats["eval_time"].update(used_time)
                 self.save_best_checkpoint(metrics, epoch)
+                if belief_tracker is not None:
+                    belief_tracker.record(epoch)
+                    belief_tracker.save_plot()  # refresh incrementally each eval
 
             self.logger.info("============ Starting epoch %i ... ============" % epoch)
             # set sampler
@@ -117,6 +142,12 @@ class Trainer:
         metrics, used_time = self.evaluator(self.model, "final model")
         self.training_stats["eval_time"].update(used_time)
         self.save_best_checkpoint(metrics, self.n_epochs)
+
+        if belief_tracker is not None:
+            belief_tracker.record(self.n_epochs)
+            path = belief_tracker.save_plot()
+            if path is not None:
+                self.logger.info("Belief-evolution plot saved at %s", path)
 
         # save last model
         self.save_model(self.n_epochs, is_final=True)
@@ -142,6 +173,16 @@ class Trainer:
             ):
                 logits = self.model(image, output_shape=target.shape[-2:])
                 loss = self.compute_loss(logits, target)
+                # Optional auxiliary loss stashed by the encoder (e.g. the
+                # predict-correct filter's temporal-prediction term). No-op for
+                # any encoder that does not expose `pop_aux_loss`.
+                _enc = getattr(self.model, "module", self.model)
+                _enc = getattr(_enc, "encoder", None)
+                _pop = getattr(_enc, "pop_aux_loss", None)
+                if _pop is not None:
+                    _aux = _pop()
+                    if _aux is not None:
+                        loss = loss + _aux
 
             self.optimizer.zero_grad()
 
