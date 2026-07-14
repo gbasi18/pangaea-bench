@@ -1,0 +1,53 @@
+# Cross-backbone baseline: vanilla I-JEPA ViT (pretrained on BigEarthNet),
+# per-frame extractor (multi_temporal=False). The temporal head is the DECODER's
+# choice, not the encoder's:
+#   decoder=seg_upernet_mt_linear  -> learned Linear(T,1) blend over time (this arm)
+#   decoder=seg_upernet_mt_ltae    -> L-TAE temporal attention
+# Isolates the BACKBONE vs the Recursive-JEPA arm under a fixed temporal head,
+# but differs in pretraining objective AND capacity — a system-level comparison.
+_target_: pangaea.encoders.vanilla_jepa_stream_encoder.VanillaJEPAStreamEncoder
+
+# I-JEPA checkpoint (jepa-ep*.pth.tar). Change the epoch as needed.
+encoder_weights: /home/gianfranco/projects/2025/Project_1/jepa_baseline/ijepa-main/output_dir_pretrain_ijepa_ben/vit_smallest_20260602_133835/jepa-ep400.pth.tar
+download_url: null
+
+# path to ijepa-main (the directory that contains src/)
+repo_path: /home/gianfranco/projects/2025/Project_1/jepa_baseline/ijepa-main
+
+# read the EMA target encoder (usual downstream choice); "encoder" for the online one
+weights_key: target_encoder
+
+input_size: 128
+
+# --- backbone: MUST match the pretrained checkpoint ---
+# checkpoint vit_smallest_20260602_133835/jepa-ep400 verified: depth=4,
+# embed_dim=384, heads=6, 12-band stem, target_encoder present.
+model_name: vit_smallest     # embed_dim=384, depth=4, heads=6
+embed_dim: 384
+output_dim: 384
+patch_size: 16
+in_chans: 10
+
+# pyramid taps = transformer-block indices, in [0, depth-1] (depth=4).
+# all 4 blocks -> a 4-level pyramid (the Feature2Pyramid neck rescales them).
+output_layers: [3]
+
+# --- stem band adaptation: BEN 12-band -> PASTIS 10-band ---
+pretrain_in_chans: 12
+
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+num_frames: ${dataset.multi_temporal}
+
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12

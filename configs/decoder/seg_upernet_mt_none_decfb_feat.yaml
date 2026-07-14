@@ -1,0 +1,21 @@
+_target_: pangaea.decoders.upernet_decfb.SegMTUPerNetDecFb
+
+# FEATURE-feedback variant of seg_upernet_mt_none_decfb: feeds back the
+# decoder's pre-conv_seg feature map (channels wide, LayerNorm-bounded)
+# instead of the 20-way class probabilities -- a richer signal for the
+# encoder's next fold (~200k adapter params vs ~8k). Everything else
+# identical; see pangaea/decoders/upernet_decfb.py.
+
+# overwritten in run
+encoder: null
+num_classes: ${dataset.num_classes}
+multi_temporal: ${dataset.multi_temporal}
+finetune: ${finetune}
+
+# to adapt
+channels: 512
+multi_temporal_strategy: none
+
+# feedback adapter: what feeds back (decoder features) and how strongly.
+feedback_source: feat
+fb_scale: 1.0

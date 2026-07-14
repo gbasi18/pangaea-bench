@@ -38,11 +38,22 @@ def get_collate_fn(modalities: list[str]) -> Callable:
                         )
 
         # stack all images and targets
+        image = {
+            modality: torch.stack([x["image"][modality] for x in batch])
+            for modality in modalities
+        }
+        # Bridge per-frame acquisition dates (kept in metadata so the per-sample
+        # preprocessors leave them untouched) into the image dict AFTER
+        # preprocessing, so they reach the encoder -- the only tensor channel the
+        # model is handed. No-op for datasets that don't provide them. Shape (B, T),
+        # aligned with the optical temporal axis (see PastisS2Dates).
+        if batch and "optical_dates" in batch[0].get("metadata", {}):
+            image["optical_dates"] = torch.stack(
+                [x["metadata"]["optical_dates"] for x in batch]
+            )
+
         return {
-            "image": {
-                modality: torch.stack([x["image"][modality] for x in batch])
-                for modality in modalities
-            },
+            "image": image,
             "target": torch.stack([x["target"] for x in batch]),
             "metadata": [sample["metadata"] for sample in batch]
         }

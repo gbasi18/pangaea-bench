@@ -1,0 +1,43 @@
+trainer:
+  _target_: pangaea.engine.trainer_stream_decode_fb.StreamDecodeFbSegTrainer
+  # params overwritten in run
+  model: null
+  train_loader: null
+  optimizer: null
+  lr_scheduler: null
+  evaluator: null
+  exp_dir: null
+  device: null
+  criterion: null
+
+  # params to adapt
+  n_epochs: 80
+  precision: fp32
+  ckpt_interval: 20
+  eval_interval: 5
+  log_interval: 5
+  best_metric_key: mIoU
+  use_wandb: ${use_wandb}
+
+  # stream-decode + decoder->encoder feedback experiment: per-frame decode +
+  # full optimizer step (as segmentation_stream_decode.yaml), plus each
+  # frame's prediction is projected by the decoder's zero-initialised
+  # fb_proj adapter and ADDED into the encoder's next fold. Backbone frozen;
+  # decoder + adapter train. Requires encoder=recursive_jepa_feedback_decfb
+  # and decoder=seg_upernet_mt_none_decfb. See
+  # pangaea/engine/trainer_stream_decode_fb.py.
+  min_horizon: 1
+  log_horizon_losses: true
+  # 'all' = backward+step at every decoded frame; 'final' = decode every
+  # frame (feedback + logging still run) but gradient/step only at t=T-1.
+  loss_horizons: all
+
+evaluator:
+  _target_: pangaea.engine.evaluator.SegEvaluator
+  # params overwritten in run
+  val_loader: null
+  exp_dir: null
+  device: null
+  use_wandb: ${use_wandb}
+  inference_mode: whole
+  sliding_inference_batch: 8

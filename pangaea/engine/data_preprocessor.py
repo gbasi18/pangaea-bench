@@ -34,9 +34,9 @@ class BasePreprocessor:
                     f"Image dimension must be 4 (C, T, H, W), Got {str(len(v.shape))}"
                 )
 
-        if len(data["target"].shape) not in (0, 1, 2):
+        if len(data["target"].shape) not in (0, 1, 2, 3):
             raise AssertionError(
-                f"Target dimension must be 0 (for classification - single label) or 1 (for classification - multi-label) or 2 (for dense prediction), got {str(len(data['target'].shape))}"
+                f"Target dimension must be 0 (classification - single label), 1 (classification - multi-label), 2 (dense prediction) or 3 (dense multi-temporal prediction, T H W), got {str(len(data['target'].shape))}"
             )
 
     def check_size(self, data: dict[str, torch.Tensor | dict[str, torch.Tensor]]):
@@ -323,6 +323,10 @@ class NormalizeMeanStd(BasePreprocessor):
         """
 
         for k in self.data_mean.keys():
+            # integer-typed images (e.g. int16 GeoTIFFs kept unconverted so
+            # the pre-crop tensor stays small) can't be normalized in place
+            if not torch.is_floating_point(data["image"][k]):
+                data["image"][k] = data["image"][k].float()
             data["image"][k].sub_(self.data_mean[k].view(-1, 1, 1, 1)).div_(
                 self.data_std[k].view(-1, 1, 1, 1)
             )

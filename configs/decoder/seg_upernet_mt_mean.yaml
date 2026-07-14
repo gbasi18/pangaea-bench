@@ -1,0 +1,13 @@
+_target_: pangaea.decoders.upernet.SegMTUPerNet
+
+# overwritten in run
+encoder: null
+num_classes: ${dataset.num_classes}
+multi_temporal: ${dataset.multi_temporal}
+finetune: ${finetune}
+
+# to adapt
+channels: 512
+# parameter-free temporal pooling: mean over the T frames (no learnable weights),
+# the non-learnable counterpart of multi_temporal_strategy: linear.
+multi_temporal_strategy: mean

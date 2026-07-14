@@ -299,6 +299,10 @@ class SegMTUPerNet(SegUPerNet):
                 )
             elif self.multi_temporal_strategy == "linear":
                 self.tmap = nn.Linear(self.multi_temporal, 1)
+            elif self.multi_temporal_strategy == "mean":
+                # parameter-free temporal average pooling; the reduction over the
+                # T axis is done in forward (no learnable temporal weights).
+                self.tmap = None
             else:
                 self.tmap = None
 
@@ -356,12 +360,21 @@ class SegMTUPerNet(SegUPerNet):
             # obtain features per layer
             feats = [torch.stack(feat_layers, dim=2) for feat_layers in feats]
 
-        if self.tmap is not None:
+        # Per-frame encoders return feats with a temporal axis at dim=2 that must
+        # be collapsed here; time-merging encoders (e.g. the recursive JEPA) have
+        # already removed it and skip this block entirely.
+        encoder_merges_time = (
+            self.encoder.multi_temporal and not self.encoder.multi_temporal_output
+        )
+        if not encoder_merges_time:
             if self.multi_temporal_strategy == "ltae":
                 feats = self.ltae_adaptor(feats)
                 feats = [self.tmap(f) for f in feats]
             elif self.multi_temporal_strategy == "linear":
                 feats = [self.tmap(f.permute(0, 1, 3, 4, 2)).squeeze(-1) for f in feats]
+            elif self.multi_temporal_strategy == "mean":
+                # parameter-free temporal pooling: average over the T axis (dim=2).
+                feats = [f.mean(dim=2) for f in feats]
 
         feat = self.neck(feats)
         feat = self._forward_feature(feat)

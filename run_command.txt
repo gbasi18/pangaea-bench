@@ -1,0 +1,166 @@
+
+# Recursive JEPA backbone + mt_none
+
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=false \
+  dataset=pastis_s2 \
+  encoder=recursive_jepa_feedback \
+  decoder=seg_upernet_mt_none \
+  task=segmentation \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true 
+
+
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  finetune=false \
+  dataset=pastis_s2_dates \
+  dataset.multi_temporal=20 \
+  encoder=recursive_jepa_dt_traj \
+  decoder=seg_upernet_mt_mean \
+  task=segmentation \
+  task.evaluator.inference_mode=whole \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true
+
+# Recursive JEPA backbone + mt_none + DATES
+
+
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=false \
+  dataset=pastis_s2_dates \
+  encoder=recursive_jepa_feedback \
+  decoder=seg_upernet_mt_none \
+  task=segmentation_all_horizons \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  task.evaluator.inference_mode=whole \
+  use_wandb=true
+
+
+  torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=true \
+  dataset=pastis_s2 \
+  encoder=recursive_jepa_ltae \
+  decoder=seg_upernet_mt_ltae \
+  task=segmentation \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true
+
+
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=false \
+  dataset=pastis_s2 \
+  encoder=recursive_jepa_feedback_decfb \
+  decoder=seg_upernet_mt_none_decfb \
+  task=segmentation_stream_decode_fb \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true
+
+
+
+
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  finetune=false \
+  dataset=pastis_s2 \
+  encoder=recursive_jepa_traj \
+  encoder.tap_source=layers \
+  "encoder.output_layers=[1]" \
+  decoder=seg_upernet_mt_mean \
+  task=segmentation \
+  task.evaluator.inference_mode=whole \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true 
+
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=false \
+  dataset=pastis_s2 \
+  encoder=recursive_jepa_feedback_decfb \
+  encoder.tap_source=layers "encoder.output_layers=[0,1]" \
+  decoder=seg_upernet_mt_none_decfb_cummean \
+  task=segmentation_stream_decode_fb \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true
+
+  # vanilla I-JEPA backbone (per-frame) + LINEAR temporal head
+  
+  torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=false \
+  dataset=pastis_s2 \
+  encoder=vanilla_jepa \
+  decoder=seg_upernet_mt_linear \
+  task=segmentation \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true
+
+  # vanilla I-JEPA backbone (per-frame) + MEAN temporal head
+
+  torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py \
+  --config-name=train \
+  finetune=false \
+  dataset=pastis_s2 \
+  encoder=vanilla_jepa \
+  "encoder.output_layers=[1]" \
+  decoder=seg_upernet_mt_mean \
+  task=segmentation \
+  preprocessing=seg_default \
+  criterion=cross_entropy \
+  use_wandb=true
+
+
+  # POINT-1 control: recursive backbone RESET PER FRAME (no cross-frame carry)
+  # + LINEAR weighted-mean temporal head, FROZEN. Same backbone/weights/recursion
+  # as recursive_jepa_feedback (verified identical per-frame features); only z_L/z_H
+  # reset each frame differs. Compare vs vanilla+linear (~23) and feedback+mt_none
+  # (~17): isolates whether the cross-frame carry is what costs the mIoU.
+  
+  torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  dataset=pastis_s2 encoder=recursive_jepa_reset decoder=seg_upernet_mt_linear \
+  preprocessing=seg_resize criterion=cross_entropy task=segmentation finetune=false use_wandb=true
+
+
+  # POINT-1 control, L-TAE ("late") temporal head instead of linear: same reset-
+  # per-frame recursive backbone, time fused by per-pixel temporal attention.
+  # Compare vs vanilla+ltae (~32.74) on equal footing (same backbone, no carry).
+  torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  dataset=pastis_s2 encoder=recursive_jepa_reset decoder=seg_upernet_mt_ltae \
+  preprocessing=seg_resize criterion=cross_entropy task=segmentation finetune=false use_wandb=true
+
+
+
+
+  DynamicEarth 
+
+# ARM 1 — no memory (in effect what the smoke ran; needs the full-length run)
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  finetune=false dataset=dynamicen_stream encoder=vanilla_jepa_stream \
+  decoder=seg_upernet_mt_none task=segmentation_stream_labels \
+  preprocessing=seg_default criterion=cross_entropy use_wandb=true 
+
+# ARM 2 — carry:      encoder=recursive_jepa_feedback_stream            (port 29521)
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  finetune=false dataset=dynamicen_stream encoder=recursive_jepa_feedback_stream \
+  decoder=seg_upernet_mt_none task=segmentation_stream_labels \
+  preprocessing=seg_default criterion=cross_entropy use_wandb=true 
+
+
+# ARM 3 — carry+fb:   encoder=recursive_jepa_feedback_decfb \
+torchrun --nnodes=1 --nproc_per_node=1 pangaea/run.py --config-name=train \
+  finetune=false dataset=dynamicen_stream encoder=recursive_jepa_feedback_decfb \
+  decoder=seg_upernet_mt_none_decfb task=segmentation_stream_labels_fb \
+  preprocessing=seg_default criterion=cross_entropy use_wandb=true 
+
+
+# decoder=seg_upernet_mt_none_decfb task=segmentation_stream_labels_fb   (port 29522)

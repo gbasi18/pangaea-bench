@@ -1,0 +1,26 @@
+_target_: pangaea.decoders.upernet_decfb.SegMTUPerNetDecFb
+
+# ATTENTION-token variant of seg_upernet_mt_none_decfb: instead of adding a
+# per-patch vector to z_H, the decoder's frame-t class probabilities are
+# pooled into attn_tokens region summaries ("quadrant q's class mixture"),
+# projected to embed_dim (zero-init, + learned token embeddings), and
+# PREPENDED to the encoder's H_block input sequence at frame t+1 -- the
+# frozen attention then routes decoder context to patches content-
+# dependently. Tokens are never folded, carried, or decoded. Run
+# decoder.feedback_mode=add+attn for both pathways at once.
+# See pangaea/decoders/upernet_decfb.py.
+
+# overwritten in run
+encoder: null
+num_classes: ${dataset.num_classes}
+multi_temporal: ${dataset.multi_temporal}
+finetune: ${finetune}
+
+# to adapt
+channels: 512
+multi_temporal_strategy: none
+
+feedback_source: probs
+feedback_mode: attn
+fb_scale: 1.0
+attn_tokens: 4

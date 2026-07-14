@@ -1,0 +1,56 @@
+_target_: pangaea.encoders.recursive_jepa_ltae_baseline_encoder.RecursiveJEPALTAEBaselineEncoder
+
+# POINT-1 CONTROL ("recursive-as-vanilla"): SAME backbone, weights, recursion,
+# band slicing, n_inner/n_outer and outer-cycle pyramid taps as
+# recursive_jepa_feedback.yaml -- the ONLY difference is that z_H is seeded fresh
+# from each frame's patches and z_L is RESET every frame (no cross-frame carry).
+# Each frame is encoded independently (in-distribution, = pretraining regime) and
+# time is fused DOWNSTREAM by the decoder. Pair with seg_upernet_mt_linear to
+# compare directly against vanilla+weighted-mean (mIoU 23). Verified numerically
+# to produce identical per-frame features to the feedback recursion (belief mode).
+
+encoder_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/weight_ema-400.pth
+download_url: null
+
+# EMA shadows omit persistent buffers — restore the pretrained zL_init seed.
+buffer_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/checkpoint-400.pth
+
+repo_path: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN
+
+input_size: 128
+
+# --- backbone: MUST match the pretrained checkpoint (same as feedback) ---
+model_name: recursive_jepa_vo_small
+arch: gated_normed
+embed_dim: 384
+output_dim: 384
+patch_size: 16
+in_chans: 10
+
+# recurrence loop counts — IDENTICAL to recursive_jepa_feedback.yaml
+n_inner_steps: 3
+n_outer_steps: 2
+
+# outer-cycle pyramid taps (the baseline taps z_H per outer cycle, == tap_source
+# 'outer' in the feedback encoder). Index into [0, n_outer_steps-1].
+output_layers: [0,1]
+
+# --- stem band adaptation: BEN 12-band -> PASTIS 10-band (same as feedback) ---
+pretrain_in_chans: 12
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+temporal_bp_frames: 6
+num_frames: ${dataset.multi_temporal}
+
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12

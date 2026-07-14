@@ -1,0 +1,23 @@
+_target_: pangaea.decoders.upernet_decfb.SegMTUPerNetDecFb
+
+# GATE variant of seg_upernet_mt_none_decfb: instead of adding feedback
+# tokens to the belief, the decoder's frame-t class probabilities drive a
+# per-token gate in (0, 2) on the incoming percept: z_H = fold(z_H, g*P_t).
+# Where the decoder is confident the belief can be shielded from new
+# evidence (g<1); where it is confused, evidence is let in (g>1). Zero-init
+# head -> g == 1 -> starts exactly at the no-feedback baseline. ~21 adapter
+# params. See pangaea/decoders/upernet_decfb.py.
+
+# overwritten in run
+encoder: null
+num_classes: ${dataset.num_classes}
+multi_temporal: ${dataset.multi_temporal}
+finetune: ${finetune}
+
+# to adapt
+channels: 512
+multi_temporal_strategy: none
+
+feedback_source: probs
+feedback_mode: gate
+fb_scale: 1.0

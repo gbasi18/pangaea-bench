@@ -1,0 +1,29 @@
+_target_: pangaea.decoders.upernet_statfb.SegMTUPerNetStatFb
+
+# STATIC-feedback control for the decfb experiments: a zero-initialised
+# nn.Parameter (a learned, input-independent task prior on the belief) is
+# added to z_H at EVERY frame, t=0 included: z_H = fold(z_H, P_t) + fb.
+# Credit assignment is same-frame: frame t's loss trains the injection made
+# at frame t. Pair with encoder=recursive_jepa_feedback_decfb and
+# task=segmentation_stream_decode_fb, exactly like the dynamic variant.
+# See pangaea/decoders/upernet_statfb.py.
+
+# overwritten in run
+encoder: null
+num_classes: ${dataset.num_classes}
+multi_temporal: ${dataset.multi_temporal}
+finetune: ${finetune}
+
+# to adapt
+channels: 512
+multi_temporal_strategy: none
+
+# shared    = one prior for all frames (~24k params at 8x8x384)
+# per_frame = one prior per frame, row t added at frame t (T x that;
+#             horizon-conditioned)
+static_mode: shared
+# true = fb_static + fb_proj(decoder output): static prior + dynamics
+dynamic_feedback: false
+# only used when dynamic_feedback=true
+feedback_source: probs
+fb_scale: 1.0

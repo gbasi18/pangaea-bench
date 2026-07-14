@@ -1,0 +1,77 @@
+_target_: pangaea.encoders.recursive_jepa_feedback_encoder.RecursiveJEPAFeedbackEncoder
+
+# >>> EDIT: path to your pretrained EMA checkpoint (weight_ema-*.pth) <<<
+encoder_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/weight_ema-400.pth
+download_url: null
+
+# EMA shadows omit persistent buffers — point this at the SAME run's non-EMA
+# checkpoint so the pretrained zL_init temporal seed is restored (the recurrence
+# weights were trained against that exact fixed seed).
+buffer_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/checkpoint-400.pth
+
+# where RecursiveJEPA_visible_only_REAL*.py + util/ + gated_block.py live
+repo_path: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN
+
+input_size: 128
+
+# --- backbone: MUST match your pretrained checkpoint ---
+model_name: recursive_jepa_vo_small   # tiny=192 / small=384 / base=768
+arch: gated_normed                    # gated | standard | gated_normed
+embed_dim: 384
+output_dim: 384
+patch_size: 16
+in_chans: 10
+
+# recurrence loop counts (NOT in the checkpoint; set to your pretraining values)
+n_inner_steps: 3
+n_outer_steps: 1
+
+# --- t-1 -> t feedback behaviour (NEW vs recursive_jepa.yaml) ---
+# what the inner loop ingests with each new frame:
+#   belief  -> z_L + z_H  (in-distribution, recommended)
+#   patches -> z_L + P_t  (your literal description)
+inner_inject: belief
+# how the new frame is folded into the running belief at t>=1:
+#   null  -> plain sum:          z_H <- z_H_{t-1} + P_t            (default, best so far)
+#   [0,1] -> convex combination: z_H <- alpha*z_H_{t-1} + (1-alpha)*P_t
+# For convex: 0.5 = symmetric; ->1 keeps the prior belief sticky, ->0 forgets it.
+# No alpha reproduces the sum (the sum keeps belief AND evidence at full weight).
+alpha: null
+# outer cycles used to advance the belief on each NON-final frame
+propagate_outer_steps: 1
+
+# where the UPerNet feature pyramid is tapped from (FINAL frame):
+#   outer  -> snapshot z_H after each OUTER CYCLE; output_layers in [0, n_outer-1]
+#   layers -> on the LAST outer cycle, tap each internal H_block layer (like the
+#             vanilla JEPA encoder taps ViT blocks); output_layers in
+#             [0, n_layers_per_stream-1] (small backbone -> 2 layers).
+tap_source: outer
+
+# UPerNet pyramid taps. With tap_source=outer: index outer cycles [0, n_outer-1].
+# With tap_source=layers: index H_block internal layers [0, n_layers_per_stream-1].
+output_layers: [0]
+
+# --- stem band adaptation: BEN 12-band -> PASTIS 10-band ---
+# VERIFY against your BEN pretraining band order. Defaults assume
+# BEN  = [B01,B02,B03,B04,B05,B06,B07,B08,B8A,B09,B11,B12]
+# PASTIS optical = [B02,B03,B04,B05,B06,B07,B08,B8A,B11,B12]
+pretrain_in_chans: 12
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+# truncated BPTT through time: keep grad on the last k of T frames
+temporal_bp_frames: 20
+num_frames: ${dataset.multi_temporal}
+
+# bands fed to the encoder (must match the dataset's optical band order)
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12

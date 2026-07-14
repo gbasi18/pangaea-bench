@@ -1,0 +1,68 @@
+_target_: pangaea.encoders.recursive_jepa_traj_encoder.RecursiveJEPAFeedbackDtTrajEncoder
+
+# >>> EDIT: path to your pretrained EMA checkpoint (weight_ema-*.pth) <<<
+encoder_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/weight_ema-400.pth
+download_url: null
+
+# EMA shadows omit persistent buffers — point this at the SAME run's non-EMA
+# checkpoint so the pretrained zL_init temporal seed is restored (the recurrence
+# weights were trained against that exact fixed seed).
+buffer_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/output_dir_pretrain_jepa_vo/recursive_jepa_vo_small_20260611_134108/checkpoint-400.pth
+
+# where RecursiveJEPA_visible_only_REAL*.py + util/ + gated_block.py live
+repo_path: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN
+
+input_size: 128
+
+# --- backbone: MUST match your pretrained checkpoint ---
+model_name: recursive_jepa_vo_small   # tiny=192 / small=384 / base=768
+arch: gated_normed                    # gated | standard | gated_normed
+embed_dim: 384
+output_dim: 384
+patch_size: 16
+in_chans: 10
+
+# recurrence loop counts (NOT in the checkpoint; set to your pretraining values)
+n_inner_steps: 3
+n_outer_steps: 1
+
+# --- t-1 -> t feedback behaviour ---
+inner_inject: belief
+# Base (constant) fold. With the Δt fold ON (dt_fold: true) this `alpha` is only
+# used as the fallback when a batch has no dates; the actual per-frame weight is
+# alpha_t = exp(-Δt_t / tau). Set dt_fold: false to reproduce the parent exactly.
+alpha: null
+propagate_outer_steps: 1
+
+# --- NEW: Δt-conditioned fold ---
+# exp(-Δt/tau) mixing of the running belief vs. the new frame; Δt in days.
+# tau is the forgetting time-constant (days): larger tau -> longer memory.
+# S2 revisit ~5-10 d, seasonal gaps up to ~60 d; 30 d is a sane starting point.
+dt_fold: true
+tau: 120.0
+
+# where the UPerNet feature pyramid is tapped from (FINAL frame):
+tap_source: outer
+output_layers: [0]
+
+# --- stem band adaptation: BEN 12-band -> PASTIS 10-band ---
+pretrain_in_chans: 12
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+# truncated BPTT through time: keep grad on the last k of T frames
+temporal_bp_frames: 20
+num_frames: ${dataset.multi_temporal}
+
+# bands fed to the encoder (must match the dataset's optical band order)
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12

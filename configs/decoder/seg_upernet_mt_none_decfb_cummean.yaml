@@ -1,0 +1,19 @@
+_target_: pangaea.decoders.upernet_decfb.SegMTUPerNetDecFb
+
+# SegMTUPerNet + zero-initialised decoder->encoder feedback adapter
+# (fb_proj). Pair with encoder=recursive_jepa_feedback_decfb and
+# task=segmentation_stream_decode_fb; see pangaea/decoders/upernet_decfb.py.
+
+# overwritten in run
+encoder: null
+num_classes: ${dataset.num_classes}
+multi_temporal: ${dataset.multi_temporal}
+finetune: ${finetune}
+
+# to adapt
+channels: 512
+multi_temporal_strategy: none
+temporal_pool: cum_mean
+# feedback adapter: what feeds back (class probabilities) and how strongly.
+feedback_source: probs
+fb_scale: 1.0
