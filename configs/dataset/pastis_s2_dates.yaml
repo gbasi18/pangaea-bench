@@ -1,6 +1,6 @@
 _target_: pangaea.datasets.pastis_s2_dates.PastisS2Dates
 dataset_name: PastisS2Dates
-root_path: /home/gianfranco/projects/2025/Datasets/PASTIS-HD
+root_path: /data/gianfranco/Datasets/PASTIS-HD
 download_url: null
 auto_download: False
 

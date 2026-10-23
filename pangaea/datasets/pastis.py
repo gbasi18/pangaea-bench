@@ -342,9 +342,10 @@ class Pastis(RawGeoFMDataset):
         sar_ts = rearrange(output["s1-asc"], "t c h w -> c t h w")
 
         if self.multi_temporal == 1:
-            # we only take the last frame
-            optical_ts = optical_ts[:, -1]
-            sar_ts = sar_ts[:, -1]
+            # only the last frame — keep a length-1 T axis: the preprocessor
+            # requires (C, T, H, W) for every image tensor.
+            optical_ts = optical_ts[:, -1:]
+            sar_ts = sar_ts[:, -1:]
         else:
             # select evenly spaced samples
             optical_indexes = torch.linspace(

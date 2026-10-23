@@ -1,0 +1,68 @@
+# TREO — Temporal-Recursive EO encoder over the S2 time series, configured for
+# DynamicEarthNet (dataset=dynamicen_stream, per-MONTH streaming labels).
+# Identical backbone/readout to configs/encoder/treo.yaml; the ONLY differences
+# are the input-denorm statistics (must equal the dataset's data_mean/data_std,
+# in the ENCODER's band order — see below) and num_frames (12 months).
+#
+# Pair with:
+#   decoder=seg_upernet_mt_none  task=segmentation_stream_labels
+#   preprocessing=seg_default    criterion=cross_entropy
+# The StreamDecodeSegTrainer / StreamSegEvaluator drive the encoder through
+# TREOEncoder.forward_stream (frozen backbone, decoder trained per frame).
+_target_: pangaea.encoders.treo_encoder.TREOEncoder
+
+# pretrained TREO checkpoint ({'model','cfg',...}) from SSL4EO-S12 pretraining
+encoder_weights: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN/treo_out/small_f10_20260724_231034/checkpoint-0099.pth
+download_url: null
+
+# repo exposing the `treo` package (and `util`)
+repo_path: /home/gianfranco/projects/2025/Project_1/nested_mae_BEN
+
+input_size: 128
+
+# --- backbone: MUST match the pretrained checkpoint ---
+embed_dim: 384          # treo_small dim
+output_dim: 384         # belief -> D; set 768 if feature: belief_reason
+patch_size: 8           # 128/8 -> 16x16 = 256 tokens (matches pretraining)
+in_chans: 10            # the 10 S2 bands shared with SSL4EO-S12
+
+# --- readout ---
+temporal_output: last   # ignored on the stream path; forward_stream yields per-frame
+feature: belief         # belief (Y) | reason (Z) | belief_reason (Y‖Z, needs output_dim 768)
+output_layers: [0]      # TREO has a single belief tap per frame
+
+# truncated BPTT through time (finetune only; no-op on the frozen stream path)
+temporal_bp_frames: 4
+num_frames: ${dataset.multi_temporal}   # DynamicEarthNetStream -> 12
+default_dt_days: 30.0   # fallback cadence if the dataset provides no dates
+
+# --- band adaptation: SSL4EO-S12 12-band -> 10-band ---
+pretrain_in_chans: 12
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+# --- invert PANGAEA's z-score back to pretraining reflectance (x/10000) ---
+# denorm_mean/std MUST equal the dataset's data_mean/data_std, reordered into
+# the encoder input_bands order. DynamicEarthNetStream stores 12 bands as
+# [B2,B3,B4,B8,B5,B6,B7,B8A,B11,B12,B1,B9]; BandFilter reorders to the encoder's
+# [B2,B3,B4,B5,B6,B7,B8,B8A,B11,B12] BEFORE NormalizeMeanStd, so these stats are
+# dynamicen_stream's data_mean/std picked in that encoder order (B8 and B5/B6/B7
+# swapped, B1/B9 dropped).
+input_denorm: true
+reflectance_scale: 10000.0
+clip_max: 3.0
+denorm_mean: [1255.5577, 1552.6042, 1680.7258, 2036.9652, 2598.7223, 2833.2849, 2862.0145, 2967.8323, 2584.9935, 1986.4271]
+denorm_std:  [1602.6493, 1544.7974, 1648.0609, 1638.9947, 1502.4242, 1512.4663, 1512.4504, 1513.3499, 1594.0788, 1500.6053]
+
+# bands fed to the encoder (must match the dataset's optical band order)
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12

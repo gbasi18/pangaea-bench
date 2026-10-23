@@ -55,8 +55,9 @@ class PastisS2(Pastis):
         optical_ts = rearrange(s2, "t c h w -> c t h w")
 
         if self.multi_temporal == 1:
-            # only the last frame
-            optical_ts = optical_ts[:, -1]
+            # only the last frame — keep a length-1 T axis: the preprocessor
+            # requires (C, T, H, W) for every image tensor.
+            optical_ts = optical_ts[:, -1:]
         else:
             # evenly-spaced samples across the (capped) series
             optical_indexes = torch.linspace(

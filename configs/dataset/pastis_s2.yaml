@@ -1,11 +1,11 @@
 _target_: pangaea.datasets.pastis_s2.PastisS2
 dataset_name: PastisS2
-root_path: /home/gianfranco/projects/2025/Datasets/PASTIS-HD
+root_path: /data/gianfranco/Datasets/PASTIS-HD
 download_url: null
 auto_download: False
 
 img_size: 128
-multi_temporal: 20
+multi_temporal: 6
 multi_modal: False   # S2-only
 
 # classes (identical to the stock PASTIS config -> comparable metrics)

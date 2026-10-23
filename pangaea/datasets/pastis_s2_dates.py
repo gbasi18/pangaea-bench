@@ -46,29 +46,25 @@ class PastisS2Dates(PastisS2):
         # integer days since self.reference_date, one per acquisition (shape (T,))
         dates = prepare_dates(line["dates-S2"], self.reference_date)
 
-        # Random cap at 50 acquisitions, kept in chronological order so the
-        # returned series -- and its dates -- stay time-ordered.
+        # Random cap at 50 acquisitions drawn EXACTLY as upstream PANGAEA does
+        # (randperm(N)[:50], unsorted), then the upstream frame selection on
+        # that order. Only the selected T indices are sorted afterwards, so the
+        # model sees the same frames as upstream, in chronological order (a
+        # recurrent encoder needs time-ordered input; upstream feeds tile
+        # t31tfj, N=61, in random order). Dates follow the same indices.
         N = len(s2)
-        if N > 50:
-            idx = torch.randperm(N)[:50].sort().values
-            s2 = s2[idx]
-            dates = dates[idx]
-
-        optical_ts = rearrange(s2, "t c h w -> c t h w")
+        idx = torch.randperm(N)[:50] if N > 50 else torch.arange(N)
 
         if self.multi_temporal == 1:
-            # only the last frame; keep its date as a length-1 series so the
-            # contract (dates aligned with the temporal axis) still holds.
-            optical_ts = optical_ts[:, -1]
-            dates = dates[-1:]
+            # Only the last frame of the capped order, as upstream. Keep a
+            # length-1 T axis: the preprocessor requires (C, T, H, W).
+            sel = idx[-1:]
         else:
-            # evenly-spaced samples across the (capped) series -- apply the SAME
-            # indices to the dates so image[t] <-> dates[t] stays aligned.
-            optical_indexes = torch.linspace(
-                0, optical_ts.shape[1] - 1, self.multi_temporal, dtype=torch.long
-            )
-            optical_ts = optical_ts[:, optical_indexes]
-            dates = dates[optical_indexes]
+            # evenly-spaced positions across the (capped) series
+            sel = idx[torch.linspace(0, len(idx) - 1, self.multi_temporal,
+                                     dtype=torch.long)].sort().values
+        optical_ts = rearrange(s2[sel], "t c h w -> c t h w")
+        dates = dates[sel]
 
         return {
             "image": {

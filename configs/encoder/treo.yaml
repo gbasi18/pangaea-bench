@@ -1,0 +1,67 @@
+# TREO — Temporal-Recursive EO encoder over the S2 time series.
+# Δt-conditioned recurrent belief; decode the belief after the final frame.
+# Pair with decoder=seg_upernet_mt_none (temporal_output: last) and
+# dataset=pastis_s2_dates (so acquisition dates reach the encoder).
+# For the per-frame-mean variant: temporal_output: stack + seg_upernet_mt_mean.
+_target_: pangaea.encoders.treo_encoder.TREOEncoder
+
+# pretrained TREO checkpoint ({'model','cfg',...}) from SSL4EO-S12 pretraining
+encoder_weights: /home/gianfranco/projects/2025/Project_1/treo/treo_out/small_f10_20260723_183038/checkpoint-0099.pth
+download_url: null
+
+# repo exposing the `treo` package (and `util`)
+repo_path: /home/gianfranco/projects/2025/Project_1/treo
+
+input_size: 128
+
+# --- backbone: MUST match the pretrained checkpoint ---
+embed_dim: 384          # treo_small dim
+output_dim: 384         # belief -> D; set 768 if feature: belief_reason
+patch_size: 8           # 128/8 -> 16x16 = 256 tokens (matches pretraining)
+in_chans: 10            # PASTIS S2 bands
+
+# --- readout ---
+temporal_output: last   # last -> seg_upernet_mt_none ; stack -> seg_upernet_mt_mean
+feature: belief         # belief (Y) | reason (Z) | belief_reason (Y‖Z, needs output_dim 768)
+output_layers: [0]      # TREO has a single belief tap per frame
+
+# truncated BPTT through time (finetune only; no-op when frozen)
+temporal_bp_frames: 4
+
+# Early-season protocol: fit the decoder head on only the FIRST N acquisitions
+# while training, then feed longer prefixes at inference with the same head.
+# null = train on the whole series (ordinary behaviour). Pair with
+# dataset.multi_temporal = the full season grid (e.g. 12) and
+# task=segmentation_horizon_eval, whose evaluator reports mIoU at every prefix.
+train_prefix: null
+num_frames: ${dataset.multi_temporal}
+default_dt_days: 30.0   # fallback cadence if the dataset provides no dates
+# PASTIS dates are days since 2018-09-01; TREO's DOY phase expects days since
+# 1970-01-01 (pretraining). 17775 = (2018-09-01 - 1970-01-01).days.
+date_offset_days: 17775
+
+# --- band adaptation: SSL4EO-S12 12-band -> PASTIS 10-band ---
+pretrain_in_chans: 12
+pretrain_band_index: [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]
+
+# --- invert PANGAEA's z-score back to pretraining reflectance (x/10000) ---
+# denorm_mean/std MUST equal the dataset's data_mean/data_std (pastis_s2).
+input_denorm: true
+reflectance_scale: 10000.0
+clip_max: 3.0
+denorm_mean: [1161.6764, 1371.4307, 1423.4067, 1759.7251, 2714.5259, 3055.8376, 3197.8960, 3313.3577, 2415.9675, 1626.8431]
+denorm_std:  [2045.0698, 1983.1763, 2060.7969, 1968.8173, 1867.2159, 1885.1361, 1897.5105, 1885.1636, 1542.7665, 1375.2511]
+
+# bands fed to the encoder (must match the dataset's optical band order)
+input_bands:
+  optical:
+    - B2
+    - B3
+    - B4
+    - B5
+    - B6
+    - B7
+    - B8
+    - B8A
+    - B11
+    - B12
